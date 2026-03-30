@@ -6,14 +6,13 @@ descriptions, and hierarchical relationships.
 """
 
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass(frozen=True)
 class Sector:
     """
     Represents an A-share market sector.
-    
+
     Attributes:
         code: Sector code identifier
         name_zh: Chinese name
@@ -22,17 +21,18 @@ class Sector:
         description_en: English description
         parent: Parent sector code (if any)
     """
+
     code: str
     name_zh: str
     name_en: str
     description_zh: str
     description_en: str
     parent: str | None = None
-    
+
     def get_name(self, language: str = "zh") -> str:
         """Get sector name in specified language."""
         return self.name_zh if language == "zh" else self.name_en
-    
+
     def get_description(self, language: str = "zh") -> str:
         """Get sector description in specified language."""
         return self.description_zh if language == "zh" else self.description_en
@@ -40,7 +40,7 @@ class Sector:
 
 # A-Share Major Sectors (SW Industry Classification Level 1)
 # 申万一级行业分类
-SECTORS: Dict[str, Sector] = {
+SECTORS: dict[str, Sector] = {
     # Financials - 金融
     "BANK": Sector(
         code="BANK",
@@ -63,7 +63,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="券商、投行、期货公司",
         description_en="Brokerages, investment banks, futures companies",
     ),
-    
     # Real Estate & Construction - 房地产与建筑
     "REAL_ESTATE": Sector(
         code="REAL_ESTATE",
@@ -86,7 +85,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="建筑工程、装饰装修、基础设施建设",
         description_en="Construction engineering, decoration, infrastructure",
     ),
-    
     # Materials - 原材料
     "STEEL": Sector(
         code="STEEL",
@@ -123,7 +121,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="化肥、农药、化纤、化工原料",
         description_en="Fertilizers, pesticides, chemical fibers, raw chemicals",
     ),
-    
     # Manufacturing - 制造业
     "AUTOMOTIVE": Sector(
         code="AUTOMOTIVE",
@@ -153,7 +150,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="白色家电、小家电、厨卫电器",
         description_en="White goods, small appliances, kitchen appliances",
     ),
-    
     # Technology - 科技
     "ELECTRONICS": Sector(
         code="ELECTRONICS",
@@ -176,7 +172,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="运营商、设备商、光模块、5G",
         description_en="Telecom operators, equipment, optical modules, 5G",
     ),
-    
     # Healthcare - 医药健康
     "PHARMA": Sector(
         code="PHARMA",
@@ -185,7 +180,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="创新药、仿制药、医疗器械、医疗服务",
         description_en="Innovative drugs, generics, medical devices, healthcare services",
     ),
-    
     # Consumer - 消费
     "FOOD_BEVERAGE": Sector(
         code="FOOD_BEVERAGE",
@@ -229,7 +223,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="化妆品、医美、个人护理",
         description_en="Cosmetics, medical aesthetics, personal care",
     ),
-    
     # Utilities & Transportation - 公用事业与交通
     "UTILITIES": Sector(
         code="UTILITIES",
@@ -245,7 +238,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="航空、机场、港口、物流、铁路",
         description_en="Airlines, airports, ports, logistics, railways",
     ),
-    
     # Agriculture - 农业
     "AGRICULTURE": Sector(
         code="AGRICULTURE",
@@ -254,7 +246,6 @@ SECTORS: Dict[str, Sector] = {
         description_zh="种植、养殖、饲料、农产品加工",
         description_en="Planting, breeding, feed, agricultural processing",
     ),
-    
     # Other - 其他
     "MEDIA": Sector(
         code="MEDIA",
@@ -281,30 +272,24 @@ def get_sector_list() -> list[str]:
 def get_sector_names(language: str = "zh") -> dict[str, str]:
     """
     Get mapping of sector codes to names.
-    
+
     Args:
         language: Language code ('zh' or 'en')
-    
+
     Returns:
         Dictionary mapping sector codes to names
     """
-    return {
-        code: sector.get_name(language)
-        for code, sector in SECTORS.items()
-    }
+    return {code: sector.get_name(language) for code, sector in SECTORS.items()}
 
 
 def get_sector_descriptions(language: str = "zh") -> dict[str, str]:
     """
     Get mapping of sector codes to descriptions.
-    
+
     Args:
         language: Language code ('zh' or 'en')
-    
+
     Returns:
         Dictionary mapping sector codes to descriptions
     """
-    return {
-        code: sector.get_description(language)
-        for code, sector in SECTORS.items()
-    }
+    return {code: sector.get_description(language) for code, sector in SECTORS.items()}

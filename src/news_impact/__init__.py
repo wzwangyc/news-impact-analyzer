@@ -16,34 +16,30 @@ __author__ = "Yucheng Wang"
 __email__ = "wangreits@163.com"
 
 from .analyzer import NewsImpactAnalyzer
-from .config import Settings, get_settings
-from .models import (
-    ImpactDirection,
-    ImpactIntensity,
-    NewsAnalysis,
-    SectorAnalysis,
-    TimeHorizon,
-)
-from .sectors import SECTORS, Sector
+from .config import Settings
+from .config import get_settings
+from .models import ImpactDirection
+from .models import ImpactIntensity
+from .models import NewsAnalysis
+from .models import SectorAnalysis
+from .models import TimeHorizon
+from .sectors import SECTORS
+from .sectors import Sector
 
 __all__ = [
     # Version
     "__version__",
-    
     # Main analyzer
     "NewsImpactAnalyzer",
-    
     # Configuration
     "Settings",
     "get_settings",
-    
     # Models
     "NewsAnalysis",
     "SectorAnalysis",
     "ImpactDirection",
     "ImpactIntensity",
     "TimeHorizon",
-    
     # Sectors
     "SECTORS",
     "Sector",

@@ -12,46 +12,52 @@ import httpx
 import structlog
 from openai import OpenAI
 
-from .config import Settings, get_settings
-from .models import ImpactDirection, ImpactIntensity, TimeHorizon
+from .config import Settings
+from .config import get_settings
+from .models import ImpactDirection
+from .models import ImpactIntensity
+from .models import TimeHorizon
 
 logger = structlog.get_logger(__name__)
 
 
 class LLMClientError(Exception):
     """Base exception for LLM client errors."""
+
     pass
 
 
 class LLMRateLimitError(LLMClientError):
     """Raised when API rate limit is exceeded."""
+
     pass
 
 
 class LLMTimeoutError(LLMClientError):
     """Raised when API request times out."""
+
     pass
 
 
 class LLMClient:
     """
     Client for LLM API interactions.
-    
+
     This class handles:
     - API authentication
     - Request/response formatting
     - Error handling and retries
     - Logging and monitoring
-    
+
     Attributes:
         settings: Application settings
         client: OpenAI-compatible client
     """
-    
+
     def __init__(self, settings: Settings | None = None) -> None:
         """
         Initialize LLM client.
-        
+
         Args:
             settings: Application settings (uses default if None)
         """
@@ -69,7 +75,7 @@ class LLMClient:
             model=self.settings.llm_model,
             base_url=self.settings.llm_base_url,
         )
-    
+
     def generate(
         self,
         prompt: str,
@@ -79,22 +85,22 @@ class LLMClient:
     ) -> str:
         """
         Generate text completion with Fail Fast validation.
-        
+
         Fail Fast Principles:
         - Validate all inputs before API call
         - Fail immediately on invalid input
         - No silent retries or fallbacks
         - Clear error messages for debugging
-        
+
         Args:
             prompt: Input prompt (must be non-empty, <100k chars)
             temperature: Sampling temperature (overrides default)
             max_tokens: Maximum tokens (overrides default)
             **kwargs: Additional arguments to pass to API
-        
+
         Returns:
             Generated text
-        
+
         Raises:
             ValueError: If input validation fails
             LLMRateLimitError: If rate limit exceeded
@@ -103,23 +109,23 @@ class LLMClient:
         """
         # Fail Fast: Validate inputs BEFORE making API call
         self._validate_prompt(prompt)
-        
+
         temp = temperature if temperature is not None else self.settings.temperature
         tokens = max_tokens if max_tokens is not None else self.settings.max_tokens
-        
+
         # Validate temperature
         if not (0.0 <= temp <= 2.0):
             raise ValueError(f"Temperature must be between 0.0 and 2.0, got {temp}")
-        
+
         # Validate max_tokens
         if not (100 <= tokens <= 8000):
             raise ValueError(f"max_tokens must be between 100 and 8000, got {tokens}")
-        
+
         start_time = time.time()
-        
+
         try:
             logger.debug("generating_completion", prompt_length=len(prompt))
-            
+
             response = self.client.chat.completions.create(
                 model=self.settings.llm_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -127,88 +133,90 @@ class LLMClient:
                 max_tokens=tokens,
                 **kwargs,
             )
-            
+
             elapsed_ms = int((time.time() - start_time) * 1000)
-            
+
             # Fail Fast: Validate response structure
             if not response.choices:
                 raise LLMClientError("LLM response has no choices")
-            
+
             if not response.choices[0].message:
                 raise LLMClientError("LLM response has no message")
-            
+
             content = response.choices[0].message.content
-            
+
             if not content or not content.strip():
                 raise LLMClientError("LLM returned empty content")
-            
+
             logger.info(
                 "completion_generated",
                 elapsed_ms=elapsed_ms,
                 tokens_used=response.usage.total_tokens if response.usage else None,
             )
-            
+
             return content.strip()
-            
+
         except httpx.TimeoutException as e:
             logger.error("request_timeout", error=str(e))
             raise LLMTimeoutError(
                 f"Request timed out after {self.settings.request_timeout}s. "
                 "Consider increasing REQUEST_TIMEOUT or reducing prompt length."
             ) from e
-        
+
         except Exception as e:
             # Fail Fast: Distinguish between different error types
             error_str = str(e).lower()
-            
+
             if "rate limit" in error_str or "too many requests" in error_str:
                 logger.error("rate_limit_exceeded", error=str(e))
                 raise LLMRateLimitError(
                     "API rate limit exceeded. Wait before retrying or reduce request frequency."
                 ) from e
-            
+
             if "authentication" in error_str or "api key" in error_str:
                 logger.error("authentication_failed", error=str(e))
                 raise LLMClientError(
                     "API authentication failed. Check your DASHSCOPE_API_KEY."
                 ) from e
-            
+
             if "invalid model" in error_str:
                 logger.error("invalid_model", error=str(e))
                 raise LLMClientError(
                     f"Invalid model: {self.settings.llm_model}. Check LLM_MODEL_NAME setting."
                 ) from e
-            
+
             logger.error("api_error", error=str(e), error_type=type(e).__name__)
             raise LLMClientError(f"LLM API error: {type(e).__name__}: {e}") from e
-    
+
     def _validate_prompt(self, prompt: str) -> None:
         """
         Validate prompt before sending to API.
-        
+
         Fail Fast: Reject invalid prompts immediately.
-        
+
         Args:
             prompt: Input prompt to validate
-        
+
         Raises:
             ValueError: If prompt is invalid
         """
         if not prompt:
             raise ValueError("Prompt cannot be empty")
-        
+
         if not isinstance(prompt, str):
             raise TypeError(f"Prompt must be a string, got {type(prompt).__name__}")
-        
+
         if len(prompt.strip()) < 10:
-            raise ValueError(f"Prompt too short ({len(prompt)} chars). Minimum 10 characters.")
-        
+            raise ValueError(
+                f"Prompt too short ({len(prompt)} chars). Minimum 10 characters."
+            )
+
         if len(prompt) > 100_000:
             raise ValueError(
                 f"Prompt too long ({len(prompt)} chars). Maximum 100,000 characters. "
                 "Consider splitting into multiple requests."
             )
-    
+
     def generate_structured(
         self,
         prompt: str,
@@ -216,14 +224,14 @@ class LLMClient:
     ) -> dict[str, Any]:
         """
         Generate structured output following a schema.
-        
+
         Args:
             prompt: Input prompt
             output_schema: Expected output schema
-        
+
         Returns:
             Structured output as dictionary
-        
+
         Note:
             This is a simplified implementation. For production,
             consider using instructor or guidance libraries.
@@ -235,11 +243,12 @@ Please format your response as valid JSON following this schema:
 
 Return ONLY the JSON, no additional text.
 """
-        
+
         response_text = self.generate(schema_prompt)
-        
+
         # Parse JSON (simplified - in production, add proper error handling)
         import json
+
         try:
             return json.loads(response_text)
         except json.JSONDecodeError as e:
@@ -250,7 +259,9 @@ Return ONLY the JSON, no additional text.
 def parse_impact_direction(text: str) -> ImpactDirection:
     """Parse impact direction from text."""
     text_lower = text.lower()
-    if any(word in text_lower for word in ["positive", "利好", "beneficial", "bullish"]):
+    if any(
+        word in text_lower for word in ["positive", "利好", "beneficial", "bullish"]
+    ):
         return ImpactDirection.POSITIVE
     elif any(word in text_lower for word in ["negative", "利空", "adverse", "bearish"]):
         return ImpactDirection.NEGATIVE
@@ -261,12 +272,13 @@ def parse_intensity(text: str) -> ImpactIntensity:
     """Parse impact intensity from text."""
     # Try to extract number
     import re
-    match = re.search(r'[：:]\s*(\d)', text)
+
+    match = re.search(r"[：:]\s*(\d)", text)
     if match:
         num = int(match.group(1))
         if 1 <= num <= 5:
             return ImpactIntensity(num)
-    
+
     # Fallback to keyword matching
     text_lower = text.lower()
     if any(word in text_lower for word in ["very high", "非常高", "major", "重大"]):

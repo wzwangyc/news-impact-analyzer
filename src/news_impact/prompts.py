@@ -5,16 +5,15 @@ All prompts support bilingual (Chinese/English) output and follow
 best practices for LLM prompting.
 """
 
-from typing import Literal
 
 
 def get_news_analyzer_prompt(language: str = "zh") -> str:
     """
     Get prompt template for news analysis agent.
-    
+
     Args:
         language: Output language ('zh' or 'en')
-    
+
     Returns:
         Prompt template string
     """
@@ -69,10 +68,10 @@ Please output in JSON format without additional text.
 def get_sector_analyst_prompt(language: str = "zh") -> str:
     """
     Get prompt template for sector analysis agent.
-    
+
     Args:
         language: Output language ('zh' or 'en')
-    
+
     Returns:
         Prompt template string
     """
@@ -143,10 +142,10 @@ Please output in JSON format without additional text.
 def get_summary_prompt(language: str = "zh") -> str:
     """
     Get prompt template for chief strategist (summary) agent.
-    
+
     Args:
         language: Output language ('zh' or 'en')
-    
+
     Returns:
         Prompt template string
     """
@@ -255,7 +254,10 @@ def get_json_schema_for_news_analysis() -> dict:
         "properties": {
             "event_type": {"type": "string"},
             "related_sectors": {"type": "array", "items": {"type": "string"}},
-            "impact_direction": {"type": "string", "enum": ["利好", "利空", "中性", "Positive", "Negative", "Neutral"]},
+            "impact_direction": {
+                "type": "string",
+                "enum": ["利好", "利空", "中性", "Positive", "Negative", "Neutral"],
+            },
             "impact_intensity": {"type": "integer", "minimum": 1, "maximum": 5},
             "key_facts": {"type": "array", "items": {"type": "string"}},
             "uncertainties": {"type": "array", "items": {"type": "string"}},
@@ -271,15 +273,25 @@ def get_json_schema_for_sector_analysis() -> dict:
         "properties": {
             "direct_impact": {"type": "string"},
             "indirect_impact": {"type": "string"},
-            "impact_direction": {"type": "string", "enum": ["利好", "利空", "中性", "Positive", "Negative", "Neutral"]},
+            "impact_direction": {
+                "type": "string",
+                "enum": ["利好", "利空", "中性", "Positive", "Negative", "Neutral"],
+            },
             "impact_intensity": {"type": "integer", "minimum": 1, "maximum": 5},
-            "time_horizon": {"type": "string", "enum": ["短期", "中期", "长期", "Short-term", "Mid-term", "Long-term"]},
+            "time_horizon": {
+                "type": "string",
+                "enum": ["短期", "中期", "长期", "Short-term", "Mid-term", "Long-term"],
+            },
             "affected_subsectors": {"type": "array", "items": {"type": "string"}},
             "key_logic": {"type": "string"},
             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         },
         "required": [
-            "direct_impact", "impact_direction", "impact_intensity",
-            "time_horizon", "key_logic", "confidence",
+            "direct_impact",
+            "impact_direction",
+            "impact_intensity",
+            "time_horizon",
+            "key_logic",
+            "confidence",
         ],
     }

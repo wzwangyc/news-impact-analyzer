@@ -78,10 +78,16 @@ class LLMClient:
         **kwargs: Any,
     ) -> str:
         """
-        Generate text completion.
+        Generate text completion with Fail Fast validation.
+        
+        Fail Fast Principles:
+        - Validate all inputs before API call
+        - Fail immediately on invalid input
+        - No silent retries or fallbacks
+        - Clear error messages for debugging
         
         Args:
-            prompt: Input prompt
+            prompt: Input prompt (must be non-empty, <100k chars)
             temperature: Sampling temperature (overrides default)
             max_tokens: Maximum tokens (overrides default)
             **kwargs: Additional arguments to pass to API
@@ -90,12 +96,24 @@ class LLMClient:
             Generated text
         
         Raises:
+            ValueError: If input validation fails
             LLMRateLimitError: If rate limit exceeded
             LLMTimeoutError: If request timed out
             LLMClientError: For other API errors
         """
+        # Fail Fast: Validate inputs BEFORE making API call
+        self._validate_prompt(prompt)
+        
         temp = temperature if temperature is not None else self.settings.temperature
         tokens = max_tokens if max_tokens is not None else self.settings.max_tokens
+        
+        # Validate temperature
+        if not (0.0 <= temp <= 2.0):
+            raise ValueError(f"Temperature must be between 0.0 and 2.0, got {temp}")
+        
+        # Validate max_tokens
+        if not (100 <= tokens <= 8000):
+            raise ValueError(f"max_tokens must be between 100 and 8000, got {tokens}")
         
         start_time = time.time()
         
@@ -112,10 +130,17 @@ class LLMClient:
             
             elapsed_ms = int((time.time() - start_time) * 1000)
             
-            if not response.choices or not response.choices[0].message.content:
-                raise LLMClientError("Empty response from LLM")
+            # Fail Fast: Validate response structure
+            if not response.choices:
+                raise LLMClientError("LLM response has no choices")
             
-            content = response.choices[0].message.content.strip()
+            if not response.choices[0].message:
+                raise LLMClientError("LLM response has no message")
+            
+            content = response.choices[0].message.content
+            
+            if not content or not content.strip():
+                raise LLMClientError("LLM returned empty content")
             
             logger.info(
                 "completion_generated",
@@ -123,19 +148,66 @@ class LLMClient:
                 tokens_used=response.usage.total_tokens if response.usage else None,
             )
             
-            return content
+            return content.strip()
             
         except httpx.TimeoutException as e:
             logger.error("request_timeout", error=str(e))
-            raise LLMTimeoutError(f"Request timed out after {self.settings.request_timeout}s") from e
+            raise LLMTimeoutError(
+                f"Request timed out after {self.settings.request_timeout}s. "
+                "Consider increasing REQUEST_TIMEOUT or reducing prompt length."
+            ) from e
         
         except Exception as e:
-            if "rate limit" in str(e).lower():
+            # Fail Fast: Distinguish between different error types
+            error_str = str(e).lower()
+            
+            if "rate limit" in error_str or "too many requests" in error_str:
                 logger.error("rate_limit_exceeded", error=str(e))
-                raise LLMRateLimitError("API rate limit exceeded") from e
+                raise LLMRateLimitError(
+                    "API rate limit exceeded. Wait before retrying or reduce request frequency."
+                ) from e
+            
+            if "authentication" in error_str or "api key" in error_str:
+                logger.error("authentication_failed", error=str(e))
+                raise LLMClientError(
+                    "API authentication failed. Check your DASHSCOPE_API_KEY."
+                ) from e
+            
+            if "invalid model" in error_str:
+                logger.error("invalid_model", error=str(e))
+                raise LLMClientError(
+                    f"Invalid model: {self.settings.llm_model}. Check LLM_MODEL_NAME setting."
+                ) from e
             
             logger.error("api_error", error=str(e), error_type=type(e).__name__)
-            raise LLMClientError(f"LLM API error: {e}") from e
+            raise LLMClientError(f"LLM API error: {type(e).__name__}: {e}") from e
+    
+    def _validate_prompt(self, prompt: str) -> None:
+        """
+        Validate prompt before sending to API.
+        
+        Fail Fast: Reject invalid prompts immediately.
+        
+        Args:
+            prompt: Input prompt to validate
+        
+        Raises:
+            ValueError: If prompt is invalid
+        """
+        if not prompt:
+            raise ValueError("Prompt cannot be empty")
+        
+        if not isinstance(prompt, str):
+            raise TypeError(f"Prompt must be a string, got {type(prompt).__name__}")
+        
+        if len(prompt.strip()) < 10:
+            raise ValueError(f"Prompt too short ({len(prompt)} chars). Minimum 10 characters.")
+        
+        if len(prompt) > 100_000:
+            raise ValueError(
+                f"Prompt too long ({len(prompt)} chars). Maximum 100,000 characters. "
+                "Consider splitting into multiple requests."
+            )
     
     def generate_structured(
         self,

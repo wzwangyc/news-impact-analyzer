@@ -22,8 +22,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .analyzer import NewsImpactAnalyzer
-from .config import get_settings
-from .llm_client import LLMClientError
+from .config import ConfigurationError, get_settings
+from .llm_client import LLMClientError, LLMRateLimitError, LLMTimeoutError
 
 # Configure logging
 structlog.configure(
@@ -31,6 +31,37 @@ structlog.configure(
 )
 
 console = Console()
+
+
+def _validate_news_argument(news: str) -> None:
+    """
+    Validate news command-line argument.
+    
+    Fail Fast: Reject invalid arguments before any processing.
+    
+    Args:
+        news: News text from command line
+    
+    Raises:
+        ValueError: If news is invalid
+    """
+    if not news:
+        raise ValueError("News text cannot be empty")
+    
+    if not news.strip():
+        raise ValueError("News text cannot be only whitespace")
+    
+    length = len(news.strip())
+    
+    if length < 10:
+        raise ValueError(
+            f"News text too short ({length} chars). Minimum 10 characters."
+        )
+    
+    if length > 10_000:
+        raise ValueError(
+            f"News text too long ({length} chars). Maximum 10,000 characters."
+        )
 
 
 def create_sector_table(
@@ -175,7 +206,13 @@ def print_json_report(result: dict) -> None:
 
 def main() -> int:
     """
-    Main entry point for CLI.
+    Main entry point for CLI with Fail Fast validation.
+    
+    Fail Fast Principles:
+    - Validate configuration at startup
+    - Validate command-line arguments immediately
+    - Fail on first error, don't continue
+    - Clear error messages with actionable guidance
     
     Returns:
         Exit code (0 for success, 1 for error)
@@ -194,7 +231,7 @@ Examples:
     parser.add_argument(
         "news",
         type=str,
-        help="News content to analyze",
+        help="News content to analyze (10-10000 characters)",
     )
     
     parser.add_argument(
@@ -221,8 +258,16 @@ Examples:
     
     args = parser.parse_args()
     
+    # Fail Fast: Validate news argument before initialization
     try:
-        # Initialize analyzer
+        _validate_news_argument(args.news)
+    except ValueError as e:
+        console.print(f"\n[bold red]❌ Invalid Input:[/bold red] {e}")
+        console.print("\n[dim]Usage: news-impact \"新闻内容\" [--language zh|en] [--output json|text][/dim]")
+        return 1
+    
+    try:
+        # Fail Fast: Initialize analyzer (validates configuration)
         with console.status("[bold green]Initializing analyzer..."):
             analyzer = NewsImpactAnalyzer(language=args.language)
         
@@ -241,14 +286,51 @@ Examples:
         
         return 0
         
-    except LLMClientError as e:
-        console.print(f"\n[bold red]❌ API Error:[/bold red] {e}")
+    except ConfigurationError as e:
+        # Fail Fast: Configuration errors are critical, provide clear guidance
+        console.print(f"\n[bold red]❌ Configuration Error:[/bold red] {e}")
+        console.print(
+            "\n[yellow]To fix:[/yellow]\n"
+            "1. Copy .env.example to .env: [dim]cp .env.example .env[/dim]\n"
+            "2. Edit .env and set DASHSCOPE_API_KEY\n"
+            "3. Get API key from: https://bailian.console.aliyun.com/"
+        )
         return 1
+    
+    except LLMRateLimitError as e:
+        # Fail Fast: Rate limit - don't retry automatically
+        console.print(f"\n[bold red]❌ Rate Limit Error:[/bold red] {e}")
+        console.print("\n[yellow]To fix:[/yellow] Wait 1 minute and retry, or reduce request frequency")
+        return 1
+    
+    except LLMTimeoutError as e:
+        # Fail Fast: Timeout - provide actionable guidance
+        console.print(f"\n[bold red]❌ Timeout Error:[/bold red] {e}")
+        console.print("\n[yellow]To fix:[/yellow]\n"
+            "1. Check network connection\n"
+            "2. Reduce news text length\n"
+            "3. Increase REQUEST_TIMEOUT in .env"
+        )
+        return 1
+    
+    except LLMClientError as e:
+        # Fail Fast: Other API errors
+        console.print(f"\n[bold red]❌ API Error:[/bold red] {e}")
+        console.print("\n[yellow]To fix:[/yellow] Check API key and network connection")
+        return 1
+    
     except Exception as e:
-        console.print(f"\n[bold red]❌ Unexpected Error:[/bold red] {e}")
+        # Fail Fast: Unexpected errors - provide full details in verbose mode
+        console.print(f"\n[bold red]❌ Unexpected Error:[/bold red] {type(e).__name__}")
+        console.print(f"[dim]Details: {e}[/dim]")
+        
         if args.verbose:
+            console.print("\n[bold]Stack Trace:[/bold]")
             import traceback
             traceback.print_exc()
+        else:
+            console.print("\n[dim]Run with --verbose for full stack trace[/dim]")
+        
         return 1
 
 

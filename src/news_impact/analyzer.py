@@ -68,10 +68,16 @@ class NewsImpactAnalyzer:
     
     def analyze(self, news_text: str) -> dict[str, Any]:
         """
-        Analyze news impact on A-share sectors.
+        Analyze news impact on A-share sectors with Fail Fast validation.
+        
+        Fail Fast Principles:
+        - Validate all inputs immediately
+        - Fail on first error, don't continue
+        - Clear error messages with actionable guidance
+        - No partial results on failure
         
         Args:
-            news_text: News content to analyze
+            news_text: News content to analyze (Chinese or English, 10-10k chars)
         
         Returns:
             Complete analysis results including:
@@ -84,11 +90,13 @@ class NewsImpactAnalyzer:
             - signals_to_watch: Signals to monitor
         
         Raises:
+            TypeError: If news_text is not a string
+            ValueError: If news_text is invalid (empty, too short, too long)
             LLMClientError: If LLM API fails
-            ValueError: If news text is invalid
+            RuntimeError: If analysis produces invalid results
         """
-        if not news_text or len(news_text.strip()) < 10:
-            raise ValueError("News text must be at least 10 characters")
+        # Fail Fast: Validate input type and content BEFORE any processing
+        self._validate_news_input(news_text)
         
         start_time = time.time()
         logger.info("analysis_started", news_length=len(news_text))
@@ -111,7 +119,8 @@ class NewsImpactAnalyzer:
         elapsed_ms = int((time.time() - start_time) * 1000)
         logger.info("analysis_completed", elapsed_ms=elapsed_ms)
         
-        return {
+        # Fail Fast: Validate result structure before returning
+        result = {
             "news_analysis": news_analysis,
             "sector_analyses": sector_analyses,
             "bullish_top5": summary["bullish_top5"],
@@ -126,6 +135,92 @@ class NewsImpactAnalyzer:
                 "model": self.settings.llm_model,
             },
         }
+        
+        self._validate_result(result)
+        return result
+    
+    def _validate_news_input(self, news_text: Any) -> None:
+        """
+        Validate news input with strict type and content checks.
+        
+        Fail Fast: Reject invalid input immediately, before any processing.
+        
+        Args:
+            news_text: Input to validate
+        
+        Raises:
+            TypeError: If news_text is not a string
+            ValueError: If news_text content is invalid
+        """
+        # Type check - must be string
+        if not isinstance(news_text, str):
+            raise TypeError(
+                f"news_text must be a string, got {type(news_text).__name__}. "
+                "Example: analyzer.analyze('央行宣布降准')"
+            )
+        
+        # Empty check
+        if not news_text:
+            raise ValueError("news_text cannot be empty")
+        
+        # Whitespace check
+        if not news_text.strip():
+            raise ValueError("news_text cannot be only whitespace")
+        
+        # Length checks
+        length = len(news_text.strip())
+        if length < 10:
+            raise ValueError(
+                f"news_text too short ({length} chars). Minimum 10 characters. "
+                "Example: '央行宣布降准 0.5 个百分点'"
+            )
+        
+        if length > 10_000:
+            raise ValueError(
+                f"news_text too long ({length} chars). Maximum 10,000 characters. "
+                "Please summarize or split into multiple requests."
+            )
+    
+    def _validate_result(self, result: dict[str, Any]) -> None:
+        """
+        Validate analysis result structure before returning.
+        
+        Fail Fast: Ensure result is complete and valid, don't return partial data.
+        
+        Args:
+            result: Analysis result dictionary
+        
+        Raises:
+            RuntimeError: If result structure is invalid
+        """
+        required_keys = [
+            "news_analysis",
+            "sector_analyses",
+            "bullish_top5",
+            "bearish_top5",
+            "recommendations",
+            "risks",
+            "signals_to_watch",
+            "metadata",
+        ]
+        
+        for key in required_keys:
+            if key not in result:
+                raise RuntimeError(
+                    f"Analysis result missing required key: '{key}'. "
+                    "This indicates a bug in the analysis pipeline."
+                )
+        
+        # Validate sector_analyses is not empty
+        if not result["sector_analyses"]:
+            raise RuntimeError("sector_analyses is empty. Analysis failed.")
+        
+        # Validate metadata
+        if not isinstance(result["metadata"], dict):
+            raise RuntimeError("metadata must be a dictionary")
+        
+        if "processing_time_ms" not in result["metadata"]:
+            raise RuntimeError("metadata missing processing_time_ms")
     
     def _analyze_news(self, news_text: str) -> NewsAnalysis:
         """

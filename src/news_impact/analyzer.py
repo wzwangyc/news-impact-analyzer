@@ -139,6 +139,7 @@ class NewsImpactAnalyzer:
         Validate news input with strict type and content checks.
 
         Fail Fast: Reject invalid input immediately, before any processing.
+        Security: Prevent injection attacks and resource exhaustion.
 
         Args:
             news_text: Input to validate
@@ -153,15 +154,32 @@ class NewsImpactAnalyzer:
                 f"news_text must be a string, got {type(news_text).__name__}. "
                 "Example: analyzer.analyze('央行宣布降准')"
             )
-
+        
         # Empty check
         if not news_text:
             raise ValueError("news_text cannot be empty")
-
+        
         # Whitespace check
         if not news_text.strip():
             raise ValueError("news_text cannot be only whitespace")
-
+        
+        # Security: Check for potential injection patterns
+        dangerous_patterns = [
+            "<script",  # XSS
+            "javascript:",  # JS injection
+            "file://",  # File access
+            "import os",  # Code injection
+            "__import__",  # Code injection
+        ]
+        
+        news_lower = news_text.lower()
+        for pattern in dangerous_patterns:
+            if pattern in news_lower:
+                raise ValueError(
+                    f"Potentially dangerous pattern detected: '{pattern}'. "
+                    "News text must be plain text only."
+                )
+        
         # Length checks
         length = len(news_text.strip())
         if length < 10:
@@ -169,7 +187,7 @@ class NewsImpactAnalyzer:
                 f"news_text too short ({length} chars). Minimum 10 characters. "
                 "Example: '央行宣布降准 0.5 个百分点'"
             )
-
+        
         if length > 10_000:
             raise ValueError(
                 f"news_text too long ({length} chars). Maximum 10,000 characters. "

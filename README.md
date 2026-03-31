@@ -7,6 +7,8 @@
 
 **AI-powered multi-agent system for analyzing the impact of breaking news on A-share market sectors.**
 
+[中文文档](README_CN.md) | [Documentation](docs/) | [Examples](examples/)
+
 > 📊 **Predict market movements before they happen**  
 > 🤖 **Multi-agent simulation with 28+ industry analysts**  
 > 🌐 **Bilingual support (Chinese/English)**

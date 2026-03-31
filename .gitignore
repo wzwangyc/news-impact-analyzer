@@ -74,3 +74,44 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Sensitive files (never commit)
+.env
+.env.*
+*.env
+*.key
+*.pem
+*token*
+*secret*
+*password*
+
+# Local development
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local docs (prompts, coding guides)
+docs/*prompt*
+docs/*Prompt*
+docs/*PROMPT*
+docs/coding*
+docs/Coding*
+docs/CODING*
+docs/local*
+docs/Local*
+docs/LOCAL*
+
+# Build outputs
+build/
+dist/
+*.egg-info/

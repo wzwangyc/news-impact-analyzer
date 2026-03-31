@@ -1,0 +1,31 @@
+name: Security Scan
+
+# Manual only - no automatic failures
+on:
+  workflow_dispatch:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install security tools
+      run: |
+        pip install --upgrade pip
+        pip install pip-audit bandit safety
+    
+    - name: Run security scans (informational)
+      run: |
+        echo "=== pip-audit ==="
+        pip-audit 2>&1 || true
+        echo "=== bandit ==="
+        bandit -r src/ 2>&1 || true
+        echo "=== safety ==="
+        safety check 2>&1 || true
